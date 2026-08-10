@@ -1,20 +1,30 @@
-sudo python3 << EOF
+sudo python3 << 'EOF'
 from gpiozero import LED
 import time
 
-TEST_PIN = LED(12)
+EN = LED(4, active_high=False)    # Enable motor
+DIR = LED(24, active_high=False)  # Direction
+STP = LED(23, active_high=False)  # Step
 
-print("GPIO 12 will toggle 10 times")
-print("Use voltmeter on the wire connected to GPIO 12!")
-print()
+print("Enabling motor on GPIO 4...")
+EN.on()
+time.sleep(0.5)
 
-for i in range(10):
-    TEST_PIN.on()
-    print(f"{i+1}. HIGH - voltmeter should show 3.3V")
-    time.sleep(1)
-    TEST_PIN.off()
-    print(f"{i+1}. LOW - voltmeter should show 0V")
-    time.sleep(1)
+print("Setting direction...")
+DIR.off()
+time.sleep(0.1)
 
-TEST_PIN.close()
+print("Sending 200 step pulses...")
+for i in range(200):
+    STP.on()
+    time.sleep(0.0005)
+    STP.off()
+    time.sleep(0.0005)
+    if (i + 1) % 50 == 0:
+        print("Steps: " + str(i + 1))
+
+print("Done")
+EN.close()
+DIR.close()
+STP.close()
 EOF
