@@ -25,7 +25,9 @@ class StepperController:
         self.stop_event = threading.Event()
         self.thread = None
         self.running = False
-        self.step_delay = 0.001
+        self.step_delay = 0.003
+        self.pulse_width = 0.0015
+        self.pulse_interval = 0.0015
         self.use_gpiozero = False
 
         if DigitalOutputDevice is not None:
@@ -93,15 +95,19 @@ class StepperController:
 
     def _pulse_step(self):
         if self.use_gpiozero:
-            self.step_pin.on()
-            time.sleep(self.step_delay / 2.0)
             self.step_pin.off()
-            time.sleep(self.step_delay / 2.0)
+            time.sleep(self.pulse_width)
+            self.step_pin.on()
+            time.sleep(self.pulse_width)
+            self.step_pin.off()
+            time.sleep(self.pulse_interval)
         else:
-            GPIO.output(self.STEP_PIN, GPIO.HIGH)
-            time.sleep(self.step_delay / 2.0)
             GPIO.output(self.STEP_PIN, GPIO.LOW)
-            time.sleep(self.step_delay / 2.0)
+            time.sleep(self.pulse_width)
+            GPIO.output(self.STEP_PIN, GPIO.HIGH)
+            time.sleep(self.pulse_width)
+            GPIO.output(self.STEP_PIN, GPIO.LOW)
+            time.sleep(self.pulse_interval)
 
     def move_steps(self, steps, speed_hz=500, clockwise=True):
         if self.running:
@@ -121,7 +127,7 @@ class StepperController:
             self.enable(True)
             self.set_direction(clockwise)
 
-            self.step_delay = max(0.0005, 1.0 / max(speed_hz, 1))
+            self.step_delay = max(0.002, 1.0 / max(speed_hz, 1))
             step_count = abs(int(steps))
 
             for _ in range(step_count):
@@ -198,7 +204,7 @@ class StepperGUI:
 
         ttk.Button(btn_frame, text="Move", command=self.on_move).pack(side="left", padx=5)
         ttk.Button(btn_frame, text="Stop", command=self.on_stop).pack(side="left", padx=5)
-        ttk.Button(btn_frame, text="Test 1 Step", command=self.on_test_step).pack(side="left", padx=5)
+        ttk.Button(btn_frame, text="Test 10 Steps", command=self.on_test_step).pack(side="left", padx=5)
 
         self.root.protocol("WM_DELETE_WINDOW", self.on_close)
 
@@ -226,9 +232,10 @@ class StepperGUI:
             self.controller.set_microstep(self.microstep_var.get())
             self.controller.set_direction(self.direction_var.get() == "CW")
             self.controller.enable(True)
-            self.controller._pulse_step()
+            for _ in range(10):
+                self.controller._pulse_step()
             self.controller.enable(False)
-            self.status_var.set("Test step sent")
+            self.status_var.set("Test 10 steps sent")
         except Exception as exc:
             self.status_var.set("Error")
             messagebox.showerror("Error", str(exc))
