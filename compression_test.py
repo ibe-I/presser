@@ -29,6 +29,9 @@ class StepperController:
         self.pulse_width = 0.0015
         self.pulse_interval = 0.0015
         self.use_gpiozero = False
+        self.en_is_active_low = True
+        self.dir_is_active_low = False
+        self.step_is_active_low = False
 
         if DigitalOutputDevice is not None:
             self._init_gpiozero()
@@ -75,51 +78,43 @@ class StepperController:
             GPIO.output(self.MS1_PIN, ms1)
             GPIO.output(self.MS2_PIN, ms2)
 
-    def enable(self, enabled=True):
+    def _set_enable(self, enabled):
         if self.use_gpiozero:
-            if enabled:
-                self.en_pin.off()
-            else:
-                self.en_pin.on()
+            self.en_pin.value = (not enabled) if self.en_is_active_low else enabled
         else:
-            GPIO.output(self.EN_PIN, GPIO.LOW if enabled else GPIO.HIGH)
+            GPIO.output(self.EN_PIN, GPIO.LOW if ((not enabled) if self.en_is_active_low else enabled) else GPIO.HIGH)
+
+    def _set_direction(self, clockwise):
+        if self.use_gpiozero:
+            self.dir_pin.value = (not clockwise) if self.dir_is_active_low else clockwise
+        else:
+            GPIO.output(self.DIR_PIN, GPIO.LOW if ((not clockwise) if self.dir_is_active_low else clockwise) else GPIO.HIGH)
+
+    def _set_step(self, high):
+        if self.use_gpiozero:
+            self.step_pin.value = (not high) if self.step_is_active_low else high
+        else:
+            GPIO.output(self.STEP_PIN, GPIO.LOW if ((not high) if self.step_is_active_low else high) else GPIO.HIGH)
+
+    def enable(self, enabled=True):
+        self._set_enable(enabled)
 
     def set_direction(self, clockwise=True):
-        if self.use_gpiozero:
-            if clockwise:
-                self.dir_pin.on()
-            else:
-                self.dir_pin.off()
-        else:
-            GPIO.output(self.DIR_PIN, GPIO.HIGH if clockwise else GPIO.LOW)
+        self._set_direction(clockwise)
 
     def _pulse_step(self):
-        if self.use_gpiozero:
-            self.step_pin.off()
-            time.sleep(self.pulse_width)
-            self.step_pin.on()
-            time.sleep(self.pulse_width)
-            self.step_pin.off()
-            time.sleep(self.pulse_interval)
-        else:
-            GPIO.output(self.STEP_PIN, GPIO.LOW)
-            time.sleep(self.pulse_width)
-            GPIO.output(self.STEP_PIN, GPIO.HIGH)
-            time.sleep(self.pulse_width)
-            GPIO.output(self.STEP_PIN, GPIO.LOW)
-            time.sleep(self.pulse_interval)
+        self._set_step(False)
+        time.sleep(self.pulse_width)
+        self._set_step(True)
+        time.sleep(self.pulse_width)
+        self._set_step(False)
+        time.sleep(self.pulse_interval)
 
     def _pulse_step_simple(self):
-        if self.use_gpiozero:
-            self.step_pin.on()
-            time.sleep(0.002)
-            self.step_pin.off()
-            time.sleep(0.002)
-        else:
-            GPIO.output(self.STEP_PIN, GPIO.HIGH)
-            time.sleep(0.002)
-            GPIO.output(self.STEP_PIN, GPIO.LOW)
-            time.sleep(0.002)
+        self._set_step(True)
+        time.sleep(0.002)
+        self._set_step(False)
+        time.sleep(0.002)
 
     def move_steps(self, steps, speed_hz=500, clockwise=True):
         if self.running:
