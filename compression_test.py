@@ -15,23 +15,21 @@ except ImportError:
 
 
 class StepperController:
+    """Reference controller that mirrors the GPIO layout from the working firmware."""
+
     def __init__(self):
+        # Same pins as the firmware reference
         self.EN_PIN = 4
         self.MS1_PIN = 27
         self.MS2_PIN = 22
-        self.STEP_PIN = 16
-        self.DIR_PIN = 18
+        self.STEP_PIN = 23
+        self.DIR_PIN = 24
 
         self.stop_event = threading.Event()
         self.thread = None
         self.running = False
-        self.step_delay = 0.003
-        self.pulse_width = 0.0015
-        self.pulse_interval = 0.0015
+        self.step_delay = 0.002
         self.use_gpiozero = False
-        self.en_is_active_low = True
-        self.dir_is_active_low = False
-        self.step_is_active_low = False
 
         if DigitalOutputDevice is not None:
             self._init_gpiozero()
@@ -49,7 +47,7 @@ class StepperController:
         self.dir_pin = DigitalOutputDevice(self.DIR_PIN)
 
         self.set_microstep("Full")
-        self.enable(False)
+        self.enable_motor()
 
     def _init_rpi_gpio(self):
         GPIO.setmode(GPIO.BCM)
@@ -58,7 +56,7 @@ class StepperController:
             GPIO.setup(pin, GPIO.OUT, initial=GPIO.LOW)
 
         self.set_microstep("Full")
-        self.enable(False)
+        self.enable_motor()
 
     def set_microstep(self, mode):
         modes = {
@@ -78,43 +76,44 @@ class StepperController:
             GPIO.output(self.MS1_PIN, ms1)
             GPIO.output(self.MS2_PIN, ms2)
 
-    def _set_enable(self, enabled):
+    def enable_motor(self):
         if self.use_gpiozero:
-            self.en_pin.value = (not enabled) if self.en_is_active_low else enabled
+            self.en_pin.off()
         else:
-            GPIO.output(self.EN_PIN, GPIO.LOW if ((not enabled) if self.en_is_active_low else enabled) else GPIO.HIGH)
+            GPIO.output(self.EN_PIN, GPIO.LOW)
 
-    def _set_direction(self, clockwise):
+    def disable_motor(self):
         if self.use_gpiozero:
-            self.dir_pin.value = (not clockwise) if self.dir_is_active_low else clockwise
+            self.en_pin.on()
         else:
-            GPIO.output(self.DIR_PIN, GPIO.LOW if ((not clockwise) if self.dir_is_active_low else clockwise) else GPIO.HIGH)
-
-    def _set_step(self, high):
-        if self.use_gpiozero:
-            self.step_pin.value = (not high) if self.step_is_active_low else high
-        else:
-            GPIO.output(self.STEP_PIN, GPIO.LOW if ((not high) if self.step_is_active_low else high) else GPIO.HIGH)
-
-    def enable(self, enabled=True):
-        self._set_enable(enabled)
+            GPIO.output(self.EN_PIN, GPIO.HIGH)
 
     def set_direction(self, clockwise=True):
-        self._set_direction(clockwise)
+        if self.use_gpiozero:
+            if clockwise:
+                self.dir_pin.on()
+            else:
+                self.dir_pin.off()
+        else:
+            GPIO.output(self.DIR_PIN, GPIO.HIGH if clockwise else GPIO.LOW)
 
-    def _pulse_step(self):
-        self._set_step(False)
-        time.sleep(self.pulse_width)
-        self._set_step(True)
-        time.sleep(self.pulse_width)
-        self._set_step(False)
-        time.sleep(self.pulse_interval)
+    def _set_step_low(self):
+        if self.use_gpiozero:
+            self.step_pin.off()
+        else:
+            GPIO.output(self.STEP_PIN, GPIO.LOW)
 
-    def _pulse_step_simple(self):
-        self._set_step(True)
-        time.sleep(0.002)
-        self._set_step(False)
-        time.sleep(0.002)
+    def _step_pulse(self):
+        if self.use_gpiozero:
+            self.step_pin.on()
+            time.sleep(self.step_delay)
+            self.step_pin.off()
+            time.sleep(self.step_delay)
+        else:
+            GPIO.output(self.STEP_PIN, GPIO.HIGH)
+            time.sleep(self.step_delay)
+            GPIO.output(self.STEP_PIN, GPIO.LOW)
+            time.sleep(self.step_delay)
 
     def move_steps(self, steps, speed_hz=500, clockwise=True):
         if self.running:
@@ -131,31 +130,28 @@ class StepperController:
 
     def _move_worker(self, steps, speed_hz, clockwise):
         try:
-            self.enable(True)
+            self.enable_motor()
             self.set_direction(clockwise)
 
-            self.step_delay = max(0.002, 1.0 / max(speed_hz, 1))
             step_count = abs(int(steps))
+            if step_count <= 0:
+                return
 
+            self.step_delay = max(0.001, 1.0 / max(speed_hz, 1))
             for _ in range(step_count):
                 if self.stop_event.is_set():
                     break
-                self._pulse_step()
+                self._step_pulse()
         finally:
             self.running = False
-            self.enable(False)
-            if self.use_gpiozero:
-                self.step_pin.off()
-            else:
-                GPIO.output(self.STEP_PIN, GPIO.LOW)
+            self.stop_event.set()
+            self.disable_motor()
+            self._set_step_low()
 
     def stop(self):
         self.stop_event.set()
-        if self.use_gpiozero:
-            self.step_pin.off()
-        else:
-            GPIO.output(self.STEP_PIN, GPIO.LOW)
-        self.enable(False)
+        self._set_step_low()
+        self.disable_motor()
         self.running = False
 
     def cleanup(self):
@@ -177,7 +173,6 @@ class StepperGUI:
         self.root.geometry("480x320")
 
         self.controller = StepperController()
-
         self.steps_var = tk.StringVar(value="200")
         self.speed_var = tk.IntVar(value=500)
         self.direction_var = tk.StringVar(value="CW")
@@ -211,8 +206,7 @@ class StepperGUI:
 
         ttk.Button(btn_frame, text="Move", command=self.on_move).pack(side="left", padx=5)
         ttk.Button(btn_frame, text="Stop", command=self.on_stop).pack(side="left", padx=5)
-        ttk.Button(btn_frame, text="Test 10 Steps", command=self.on_test_step).pack(side="left", padx=5)
-        ttk.Button(btn_frame, text="Test Simple Pulse", command=self.on_test_simple_pulse).pack(side="left", padx=5)
+        ttk.Button(btn_frame, text="Test 1 Step", command=self.on_test_step).pack(side="left", padx=5)
 
         self.root.protocol("WM_DELETE_WINDOW", self.on_close)
 
@@ -239,24 +233,10 @@ class StepperGUI:
         try:
             self.controller.set_microstep(self.microstep_var.get())
             self.controller.set_direction(self.direction_var.get() == "CW")
-            self.controller.enable(True)
-            for _ in range(10):
-                self.controller._pulse_step()
-            self.controller.enable(False)
-            self.status_var.set("Test 10 steps sent")
-        except Exception as exc:
-            self.status_var.set("Error")
-            messagebox.showerror("Error", str(exc))
-
-    def on_test_simple_pulse(self):
-        try:
-            self.controller.set_microstep(self.microstep_var.get())
-            self.controller.set_direction(self.direction_var.get() == "CW")
-            self.controller.enable(True)
-            for _ in range(20):
-                self.controller._pulse_step_simple()
-            self.controller.enable(False)
-            self.status_var.set("Simple pulse test sent")
+            self.controller.enable_motor()
+            self.controller._step_pulse()
+            self.controller.disable_motor()
+            self.status_var.set("Test step sent")
         except Exception as exc:
             self.status_var.set("Error")
             messagebox.showerror("Error", str(exc))
