@@ -3,13 +3,13 @@
 from gpiozero import LED
 import time
 
-# GPIO Pins for YOUR motherboard
-STP = LED(16, active_high=False)  # Step on GPIO 16
-DIR = LED(18, active_high=False)  # Direction on GPIO 18
+# GPIO Pins from your motherboard firmware
+STP = LED(23, active_high=False)  # Step on GPIO 23
+DIR = LED(24, active_high=False)  # Direction on GPIO 24
 
 print("=" * 50)
 print("COMPRESSION TEST RIG - Pi4")
-print("GPIO 16=STP, GPIO 18=DIR")
+print("GPIO 23=STEP, GPIO 24=DIR")
 print("=" * 50)
 print()
 
