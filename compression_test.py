@@ -19,8 +19,8 @@ class StepperController:
         self.EN_PIN = 4
         self.MS1_PIN = 27
         self.MS2_PIN = 22
-        self.STEP_PIN = 23
-        self.DIR_PIN = 24
+        self.STEP_PIN = 16
+        self.DIR_PIN = 18
 
         self.stop_event = threading.Event()
         self.thread = None
@@ -108,6 +108,18 @@ class StepperController:
             time.sleep(self.pulse_width)
             GPIO.output(self.STEP_PIN, GPIO.LOW)
             time.sleep(self.pulse_interval)
+
+    def _pulse_step_simple(self):
+        if self.use_gpiozero:
+            self.step_pin.on()
+            time.sleep(0.002)
+            self.step_pin.off()
+            time.sleep(0.002)
+        else:
+            GPIO.output(self.STEP_PIN, GPIO.HIGH)
+            time.sleep(0.002)
+            GPIO.output(self.STEP_PIN, GPIO.LOW)
+            time.sleep(0.002)
 
     def move_steps(self, steps, speed_hz=500, clockwise=True):
         if self.running:
@@ -205,6 +217,7 @@ class StepperGUI:
         ttk.Button(btn_frame, text="Move", command=self.on_move).pack(side="left", padx=5)
         ttk.Button(btn_frame, text="Stop", command=self.on_stop).pack(side="left", padx=5)
         ttk.Button(btn_frame, text="Test 10 Steps", command=self.on_test_step).pack(side="left", padx=5)
+        ttk.Button(btn_frame, text="Test Simple Pulse", command=self.on_test_simple_pulse).pack(side="left", padx=5)
 
         self.root.protocol("WM_DELETE_WINDOW", self.on_close)
 
@@ -236,6 +249,19 @@ class StepperGUI:
                 self.controller._pulse_step()
             self.controller.enable(False)
             self.status_var.set("Test 10 steps sent")
+        except Exception as exc:
+            self.status_var.set("Error")
+            messagebox.showerror("Error", str(exc))
+
+    def on_test_simple_pulse(self):
+        try:
+            self.controller.set_microstep(self.microstep_var.get())
+            self.controller.set_direction(self.direction_var.get() == "CW")
+            self.controller.enable(True)
+            for _ in range(20):
+                self.controller._pulse_step_simple()
+            self.controller.enable(False)
+            self.status_var.set("Simple pulse test sent")
         except Exception as exc:
             self.status_var.set("Error")
             messagebox.showerror("Error", str(exc))
