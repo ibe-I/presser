@@ -84,9 +84,9 @@ class StepperController:
 
     def disable_motor(self):
         if self.use_gpiozero:
-            self.en_pin.on()
+            self.en_pin.off()
         else:
-            GPIO.output(self.EN_PIN, GPIO.HIGH)
+            GPIO.output(self.EN_PIN, GPIO.LOW)
 
     def set_direction(self, clockwise=True):
         if self.use_gpiozero:
