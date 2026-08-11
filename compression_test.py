@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 
-# CRITICAL: Set GPIO factory BEFORE importing gpiozero
 import os
 os.environ['GPIOZERO_PIN_FACTORY'] = 'native'
 
