@@ -50,6 +50,11 @@ class CompressionTestRig:
             self.step_pin = DigitalOutputDevice(self.STEP_PIN)
             self.dir_pin = DigitalOutputDevice(self.DIR_PIN)
             logger.info("Using default gpiozero pin factory")
+        except RuntimeError as exc:
+            logger.error("GPIO initialization failed: %s", exc)
+            raise RuntimeError(
+                "GPIO is not available on this Pi/OS combination. This usually means the kernel does not expose the GPIO peripheral to userspace."
+            ) from exc
 
             self._set_microstep_full()
             self._set_step(False)
