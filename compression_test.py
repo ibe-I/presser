@@ -3,12 +3,16 @@
 from gpiozero import DigitalOutputDevice
 import time
 
-# Initialize GPIO pins (same as printer)
-en_pin = DigitalOutputDevice(4)      # Enable
-ms1_pin = DigitalOutputDevice(27)    # Microstepping 1
-ms2_pin = DigitalOutputDevice(22)    # Microstepping 2
-step_pin = DigitalOutputDevice(23)   # Step
-dir_pin = DigitalOutputDevice(24)    # Direction
+# Initialize GPIO pins (EXACT printer method)
+en_pin = DigitalOutputDevice(4)
+ms1_pin = DigitalOutputDevice(27)
+ms2_pin = DigitalOutputDevice(22)
+step_pin = DigitalOutputDevice(23)
+dir_pin = DigitalOutputDevice(24)
+
+# Direction constants (FROM PRINTER)
+DIR_UP = 1
+DIR_DOWN = 0
 
 print("=" * 50)
 print("COMPRESSION TEST RIG - Pi4")
@@ -18,13 +22,13 @@ print("=" * 50)
 ms1_pin.off()
 ms2_pin.off()
 
-# Enable motor (LOW enables)
+# Enable motor
 en_pin.off()
 time.sleep(0.5)
 print("Motor enabled\n")
 
 def press_down(steps=600):
-    dir_pin.off()  # Compress direction
+    dir_pin.value = DIR_DOWN  # Use .value not .off()
     time.sleep(0.1)
     
     print("\n>>> PRESSING DOWN " + str(steps) + " STEPS <<<\n")
@@ -41,7 +45,7 @@ def press_down(steps=600):
     print("COMPRESSION COMPLETE\n")
 
 def retract(steps=600):
-    dir_pin.on()  # Retract direction
+    dir_pin.value = DIR_UP  # Use .value not .on()
     time.sleep(0.1)
     
     print("\n>>> RETRACTING " + str(steps) + " STEPS <<<\n")
