@@ -1,25 +1,33 @@
-import RPi.GPIO as GPIO
+#!/usr/bin/env python3
+
+from gpiozero import DigitalOutputDevice
 import time
 
-GPIO.setmode(GPIO.BCM)
-GPIO.setwarnings(False)
+# Initialize
+en_pin = DigitalOutputDevice(4)
+step_pin = DigitalOutputDevice(23)
+dir_pin = DigitalOutputDevice(24)
 
-# Setup pins
-GPIO.setup(23, GPIO.OUT)
-GPIO.setup(24, GPIO.OUT)
-GPIO.setup(4, GPIO.OUT)
+print("Testing motor activation...")
 
-# Enable motor (LOW)
-GPIO.output(4, GPIO.LOW)
+# Enable motor using .value assignment
+en_pin.value = 0  # Try direct assignment
 time.sleep(0.5)
 
-print("Testing GPIO 23...")
-for i in range(10):
-    GPIO.output(23, GPIO.HIGH)
-    print("HIGH")
-    time.sleep(1)
-    GPIO.output(23, GPIO.LOW)
-    print("LOW")
-    time.sleep(1)
+# Set direction
+dir_pin.value = 0
+time.sleep(0.1)
 
-GPIO.cleanup()
+# Send 100 step pulses
+print("Sending 100 step pulses...")
+for i in range(100):
+    step_pin.on()
+    time.sleep(0.0005)
+    step_pin.off()
+    time.sleep(0.0005)
+
+print("Done")
+
+en_pin.close()
+step_pin.close()
+dir_pin.close()
