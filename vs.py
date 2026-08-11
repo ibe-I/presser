@@ -5,16 +5,21 @@ import time
 import logging
 
 try:
-    import RPi.GPIO as GPIO
-except ImportError:
-    GPIO = None
+    from gpiozero import DigitalOutputDevice
+except Exception:
+    DigitalOutputDevice = None
+
+try:
+    from gpiozero.pins.lgpio import LGPIOFactory
+except Exception:
+    LGPIOFactory = None
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
 class CompressionTestRig:
-    """Compression test rig using RPi.GPIO directly."""
+    """Compression test rig using gpiozero, matching the main firmware pattern."""
 
     EN_PIN = 4
     MS1_PIN = 27
@@ -26,33 +31,47 @@ class CompressionTestRig:
     DIR_DOWN = 0
 
     def __init__(self):
-        logger.info("Initializing Compression Test Rig (RPi.GPIO method)...")
+        logger.info("Initializing Compression Test Rig (gpiozero)...")
 
-        if GPIO is None:
-            raise RuntimeError("RPi.GPIO is not installed. Install it with: sudo apt install python3-rpi.gpio")
+        if DigitalOutputDevice is None:
+            raise RuntimeError("gpiozero is not installed. Install it with: sudo apt install python3-gpiozero")
 
-        if os.geteuid() != 0:
-            logger.warning("GPIO access may fail unless you run this script with sudo.")
+        self.backend_name = "gpiozero"
+        self.en_pin = None
+        self.ms1_pin = None
+        self.ms2_pin = None
+        self.step_pin = None
+        self.dir_pin = None
 
         try:
-            GPIO.setmode(GPIO.BCM)
-            GPIO.setwarnings(False)
-
-            for pin in [self.EN_PIN, self.MS1_PIN, self.MS2_PIN, self.STEP_PIN, self.DIR_PIN]:
-                GPIO.setup(pin, GPIO.OUT, initial=GPIO.LOW)
+            if LGPIOFactory is not None:
+                pin_factory = LGPIOFactory()
+                self.en_pin = DigitalOutputDevice(self.EN_PIN, pin_factory=pin_factory)
+                self.ms1_pin = DigitalOutputDevice(self.MS1_PIN, pin_factory=pin_factory)
+                self.ms2_pin = DigitalOutputDevice(self.MS2_PIN, pin_factory=pin_factory)
+                self.step_pin = DigitalOutputDevice(self.STEP_PIN, pin_factory=pin_factory)
+                self.dir_pin = DigitalOutputDevice(self.DIR_PIN, pin_factory=pin_factory)
+                logger.info("Using lgpio pin factory")
+            else:
+                self.en_pin = DigitalOutputDevice(self.EN_PIN)
+                self.ms1_pin = DigitalOutputDevice(self.MS1_PIN)
+                self.ms2_pin = DigitalOutputDevice(self.MS2_PIN)
+                self.step_pin = DigitalOutputDevice(self.STEP_PIN)
+                self.dir_pin = DigitalOutputDevice(self.DIR_PIN)
+                logger.info("Using default gpiozero pin factory")
 
             self._set_microstep_full()
             self._set_step(False)
             self._set_direction(self.DIR_DOWN)
             time.sleep(0.1)
 
-            GPIO.output(self.EN_PIN, GPIO.LOW)
+            self._enable_motor()
             time.sleep(0.5)
             logger.info("Motor ENABLED")
 
             print("=" * 60)
             print("COMPRESSION TEST RIG - Pi")
-            print("Using RPi.GPIO directly")
+            print("Using GPIO backend:", self.backend_name)
             print("=" * 60)
             print()
 
@@ -64,14 +83,17 @@ class CompressionTestRig:
             raise
 
     def _set_microstep_full(self):
-        GPIO.output(self.MS1_PIN, GPIO.LOW)
-        GPIO.output(self.MS2_PIN, GPIO.LOW)
+        self.ms1_pin.off()
+        self.ms2_pin.off()
 
     def _set_direction(self, value):
-        GPIO.output(self.DIR_PIN, GPIO.HIGH if value else GPIO.LOW)
+        self.dir_pin.value = bool(value)
 
     def _set_step(self, value):
-        GPIO.output(self.STEP_PIN, GPIO.HIGH if value else GPIO.LOW)
+        self.step_pin.value = bool(value)
+
+    def _enable_motor(self):
+        self.en_pin.off()
 
     def press_down(self, steps=600):
         """Press down."""
@@ -125,8 +147,12 @@ class CompressionTestRig:
         """Clean up the GPIO state."""
         try:
             self._set_step(False)
-            GPIO.output(self.EN_PIN, GPIO.LOW)
-            GPIO.cleanup()
+            self.en_pin.off()
+            self.en_pin.close()
+            self.step_pin.close()
+            self.dir_pin.close()
+            self.ms1_pin.close()
+            self.ms2_pin.close()
             logger.info("GPIO cleaned up")
         except Exception as exc:
             logger.error(f"Cleanup error: {exc}")
