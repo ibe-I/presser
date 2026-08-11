@@ -44,21 +44,12 @@ class CompressionTestRig:
         self.dir_pin = None
 
         try:
-            if LGPIOFactory is not None:
-                pin_factory = LGPIOFactory()
-                self.en_pin = DigitalOutputDevice(self.EN_PIN, pin_factory=pin_factory)
-                self.ms1_pin = DigitalOutputDevice(self.MS1_PIN, pin_factory=pin_factory)
-                self.ms2_pin = DigitalOutputDevice(self.MS2_PIN, pin_factory=pin_factory)
-                self.step_pin = DigitalOutputDevice(self.STEP_PIN, pin_factory=pin_factory)
-                self.dir_pin = DigitalOutputDevice(self.DIR_PIN, pin_factory=pin_factory)
-                logger.info("Using lgpio pin factory")
-            else:
-                self.en_pin = DigitalOutputDevice(self.EN_PIN)
-                self.ms1_pin = DigitalOutputDevice(self.MS1_PIN)
-                self.ms2_pin = DigitalOutputDevice(self.MS2_PIN)
-                self.step_pin = DigitalOutputDevice(self.STEP_PIN)
-                self.dir_pin = DigitalOutputDevice(self.DIR_PIN)
-                logger.info("Using default gpiozero pin factory")
+            self.en_pin = DigitalOutputDevice(self.EN_PIN)
+            self.ms1_pin = DigitalOutputDevice(self.MS1_PIN)
+            self.ms2_pin = DigitalOutputDevice(self.MS2_PIN)
+            self.step_pin = DigitalOutputDevice(self.STEP_PIN)
+            self.dir_pin = DigitalOutputDevice(self.DIR_PIN)
+            logger.info("Using default gpiozero pin factory")
 
             self._set_microstep_full()
             self._set_step(False)
