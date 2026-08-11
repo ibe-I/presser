@@ -1,30 +1,25 @@
-sudo python3 << 'EOF'
-from gpiozero import LED
+import RPi.GPIO as GPIO
 import time
 
-EN = LED(4, active_high=False)    # Enable motor
-DIR = LED(24, active_high=False)  # Direction
-STP = LED(23, active_high=False)  # Step
+GPIO.setmode(GPIO.BCM)
+GPIO.setwarnings(False)
 
-print("Enabling motor on GPIO 4...")
-EN.on()
+# Setup pins
+GPIO.setup(23, GPIO.OUT)
+GPIO.setup(24, GPIO.OUT)
+GPIO.setup(4, GPIO.OUT)
+
+# Enable motor (LOW)
+GPIO.output(4, GPIO.LOW)
 time.sleep(0.5)
 
-print("Setting direction...")
-DIR.off()
-time.sleep(0.1)
+print("Testing GPIO 23...")
+for i in range(10):
+    GPIO.output(23, GPIO.HIGH)
+    print("HIGH")
+    time.sleep(1)
+    GPIO.output(23, GPIO.LOW)
+    print("LOW")
+    time.sleep(1)
 
-print("Sending 200 step pulses...")
-for i in range(200):
-    STP.on()
-    time.sleep(0.0005)
-    STP.off()
-    time.sleep(0.0005)
-    if (i + 1) % 50 == 0:
-        print("Steps: " + str(i + 1))
-
-print("Done")
-EN.close()
-DIR.close()
-STP.close()
-EOF
+GPIO.cleanup()
