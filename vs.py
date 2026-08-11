@@ -44,12 +44,21 @@ class CompressionTestRig:
         self.dir_pin = None
 
         try:
-            self.en_pin = DigitalOutputDevice(self.EN_PIN)
-            self.ms1_pin = DigitalOutputDevice(self.MS1_PIN)
-            self.ms2_pin = DigitalOutputDevice(self.MS2_PIN)
-            self.step_pin = DigitalOutputDevice(self.STEP_PIN)
-            self.dir_pin = DigitalOutputDevice(self.DIR_PIN)
-            logger.info("Using default gpiozero pin factory")
+            pin_factory = self._create_pin_factory()
+            if pin_factory is not None:
+                self.en_pin = DigitalOutputDevice(self.EN_PIN, pin_factory=pin_factory)
+                self.ms1_pin = DigitalOutputDevice(self.MS1_PIN, pin_factory=pin_factory)
+                self.ms2_pin = DigitalOutputDevice(self.MS2_PIN, pin_factory=pin_factory)
+                self.step_pin = DigitalOutputDevice(self.STEP_PIN, pin_factory=pin_factory)
+                self.dir_pin = DigitalOutputDevice(self.DIR_PIN, pin_factory=pin_factory)
+                logger.info("Using lgpio pin factory")
+            else:
+                self.en_pin = DigitalOutputDevice(self.EN_PIN)
+                self.ms1_pin = DigitalOutputDevice(self.MS1_PIN)
+                self.ms2_pin = DigitalOutputDevice(self.MS2_PIN)
+                self.step_pin = DigitalOutputDevice(self.STEP_PIN)
+                self.dir_pin = DigitalOutputDevice(self.DIR_PIN)
+                logger.info("Using default gpiozero pin factory")
 
             self._set_microstep_full()
             self._set_step(False)
@@ -76,6 +85,16 @@ class CompressionTestRig:
         except Exception as exc:
             logger.error(f"Initialization failed: {exc}")
             raise
+
+    def _create_pin_factory(self):
+        if LGPIOFactory is None:
+            return None
+
+        try:
+            return LGPIOFactory()
+        except Exception as exc:
+            logger.warning("lgpio pin factory failed: %s", exc)
+            return None
 
     def _set_microstep_full(self):
         self.ms1_pin.off()
