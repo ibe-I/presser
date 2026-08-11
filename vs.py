@@ -1,202 +1,45 @@
-#!/usr/bin/env python3
+INFO:main:Initializing Compression Test Rig (gpiozero)...
+WARNING:main:lgpio pin factory failed: 'can not open gpiochip'
+/usr/lib/python3/dist-packages/gpiozero/devices.py:300: PinFactoryFallback: Falling back from lgpio: 'can not open gpiochip'
+warnings.warn(
+ERROR:main:GPIO initialization failed: Cannot determine SOC peripheral base address
+Traceback (most recent call last):
+File "/usr/lib/python3/dist-packages/gpiozero/pins/pi.py", line 411, in pin
+pin = self.pins[info]
+~~~~~~~~~^^^^^^
+KeyError: PinInfo(number=7, name='GPIO4', names=frozenset({'4', 'BCM4', 'WPI7', 4, 'GPIO4', 'BOARD7', 'J8:7'}), pull='', row=4, col=1, interfaces=frozenset({'', 'dpi', 'spi', 'i2c', 'gpio', 'uart'}))
 
-import os
-import time
-import logging
+During handling of the above exception, another exception occurred:
 
-try:
-    from gpiozero import DigitalOutputDevice
-except Exception:
-    DigitalOutputDevice = None
+Traceback (most recent call last):
+File "/home/presser/presser/vs.py", line 56, in init
+self.en_pin = DigitalOutputDevice(self.EN_PIN)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+File "/usr/lib/python3/dist-packages/gpiozero/devices.py", line 108, in call
+self = super().call(*args, **kwargs)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+File "/usr/lib/python3/dist-packages/gpiozero/output_devices.py", line 192, in init
+super().init(pin, active_high=active_high,
+File "/usr/lib/python3/dist-packages/gpiozero/output_devices.py", line 74, in init
+super().init(pin, pin_factory=pin_factory)
+File "/usr/lib/python3/dist-packages/gpiozero/mixins.py", line 75, in init
+super().init(*args, **kwargs)
+File "/usr/lib/python3/dist-packages/gpiozero/devices.py", line 553, in init
+pin = self.pin_factory.pin(pin)
+^^^^^^^^^^^^^^^^^^^^^^^^^
+File "/usr/lib/python3/dist-packages/gpiozero/pins/pi.py", line 413, in pin
+pin = self.pin_class(self, info)
+^^^^^^^^^^^^^^^^^^^^^^^^^^
+File "/usr/lib/python3/dist-packages/gpiozero/pins/rpigpio.py", line 101, in init
+GPIO.setup(self._number, GPIO.IN, self.GPIO_PULL_UPS[self._pull])
+RuntimeError: Cannot determine SOC peripheral base address
 
-try:
-    from gpiozero.pins.lgpio import LGPIOFactory
-except Exception:
-    LGPIOFactory = None
+The above exception was the direct cause of the following exception:
 
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
-
-
-class CompressionTestRig:
-    """Compression test rig using gpiozero, matching the main firmware pattern."""
-
-    EN_PIN = 4
-    MS1_PIN = 27
-    MS2_PIN = 22
-    STEP_PIN = 23
-    DIR_PIN = 24
-
-    DIR_UP = 1
-    DIR_DOWN = 0
-
-    def __init__(self):
-        logger.info("Initializing Compression Test Rig (gpiozero)...")
-
-        if DigitalOutputDevice is None:
-            raise RuntimeError("gpiozero is not installed. Install it with: sudo apt install python3-gpiozero")
-
-        self.backend_name = "gpiozero"
-        self.en_pin = None
-        self.ms1_pin = None
-        self.ms2_pin = None
-        self.step_pin = None
-        self.dir_pin = None
-
-        try:
-            pin_factory = self._create_pin_factory()
-            if pin_factory is not None:
-                self.en_pin = DigitalOutputDevice(self.EN_PIN, pin_factory=pin_factory)
-                self.ms1_pin = DigitalOutputDevice(self.MS1_PIN, pin_factory=pin_factory)
-                self.ms2_pin = DigitalOutputDevice(self.MS2_PIN, pin_factory=pin_factory)
-                self.step_pin = DigitalOutputDevice(self.STEP_PIN, pin_factory=pin_factory)
-                self.dir_pin = DigitalOutputDevice(self.DIR_PIN, pin_factory=pin_factory)
-                logger.info("Using lgpio pin factory")
-            else:
-                self.en_pin = DigitalOutputDevice(self.EN_PIN)
-                self.ms1_pin = DigitalOutputDevice(self.MS1_PIN)
-                self.ms2_pin = DigitalOutputDevice(self.MS2_PIN)
-                self.step_pin = DigitalOutputDevice(self.STEP_PIN)
-                self.dir_pin = DigitalOutputDevice(self.DIR_PIN)
-                logger.info("Using default gpiozero pin factory")
-
-            self._set_microstep_full()
-            self._set_step(False)
-            self._set_direction(self.DIR_DOWN)
-            time.sleep(0.1)
-
-            self._enable_motor()
-            time.sleep(0.5)
-            logger.info("Motor ENABLED")
-
-            print("=" * 60)
-            print("COMPRESSION TEST RIG - Pi")
-            print("Using GPIO backend:", self.backend_name)
-            print("=" * 60)
-            print()
-        except RuntimeError as exc:
-            logger.error("GPIO initialization failed: %s", exc)
-            raise RuntimeError(
-                "GPIO is not available on this Pi/OS combination. This usually means the kernel does not expose the GPIO peripheral to userspace."
-            ) from exc
-        except PermissionError as exc:
-            logger.error("GPIO access failed. Run the script with sudo: sudo python3 %s", __file__)
-            raise
-        except Exception as exc:
-            logger.error(f"Initialization failed: {exc}")
-            raise
-
-    def _create_pin_factory(self):
-        if LGPIOFactory is None:
-            return None
-
-        try:
-            return LGPIOFactory()
-        except Exception as exc:
-            logger.warning("lgpio pin factory failed: %s", exc)
-            return None
-
-    def _set_microstep_full(self):
-        self.ms1_pin.off()
-        self.ms2_pin.off()
-
-    def _set_direction(self, value):
-        self.dir_pin.value = bool(value)
-
-    def _set_step(self, value):
-        self.step_pin.value = bool(value)
-
-    def _enable_motor(self):
-        self.en_pin.off()
-
-    def press_down(self, steps=600):
-        """Press down."""
-        try:
-            self._set_direction(self.DIR_DOWN)
-            time.sleep(0.1)
-
-            logger.info(f"Pressing down {steps} steps")
-            print(f"\n>>> PRESSING DOWN {steps} STEPS <<<\n")
-
-            for i in range(steps):
-                self._set_step(True)
-                time.sleep(0.00025)
-                self._set_step(False)
-                time.sleep(0.00025)
-
-                if (i + 1) % 100 == 0:
-                    print(f"Position: {i + 1}")
-
-            print("\nCOMPRESSION COMPLETE\n")
-            logger.info("Compression complete")
-
-        except Exception as exc:
-            logger.error(f"Error: {exc}")
-
-    def retract(self, steps=600):
-        """Retract."""
-        try:
-            self._set_direction(self.DIR_UP)
-            time.sleep(0.1)
-
-            logger.info(f"Retracting {steps} steps")
-            print(f"\n>>> RETRACTING {steps} STEPS <<<\n")
-
-            for i in range(steps):
-                self._set_step(True)
-                time.sleep(0.00025)
-                self._set_step(False)
-                time.sleep(0.00025)
-
-                if (i + 1) % 100 == 0:
-                    print(f"Retracted: {i + 1}")
-
-            print("\nFULLY RETRACTED\n")
-            logger.info("Retraction complete")
-
-        except Exception as exc:
-            logger.error(f"Error: {exc}")
-
-    def cleanup(self):
-        """Clean up the GPIO state."""
-        try:
-            self._set_step(False)
-            self.en_pin.off()
-            self.en_pin.close()
-            self.step_pin.close()
-            self.dir_pin.close()
-            self.ms1_pin.close()
-            self.ms2_pin.close()
-            logger.info("GPIO cleaned up")
-        except Exception as exc:
-            logger.error(f"Cleanup error: {exc}")
-
-
-if __name__ == "__main__":
-    rig = None
-    try:
-        rig = CompressionTestRig()
-        print("Commands: p, press 800, r, retract 800, q\n")
-
-        while True:
-            cmd = input("compression> ").strip().lower()
-            if cmd == 'p':
-                rig.press_down(600)
-            elif cmd.startswith('press '):
-                rig.press_down(int(cmd.split()[1]))
-            elif cmd == 'r':
-                rig.retract(600)
-            elif cmd.startswith('retract '):
-                rig.retract(int(cmd.split()[1]))
-            elif cmd == 'q':
-                break
-            else:
-                if cmd:
-                    print("Unknown command")
-
-    except KeyboardInterrupt:
-        print("\n\nInterrupted")
-
-    finally:
-        if rig:
-            rig.cleanup()
+Traceback (most recent call last):
+File "/home/presser/presser/vs.py", line 178, in
+rig = CompressionTestRig()
+^^^^^^^^^^^^^^^^^^^^
+File "/home/presser/presser/vs.py", line 79, in init
+raise RuntimeError(
+RuntimeError: GPIO is not available on this Pi/OS combination. This usually means the kernel does not expose the GPIO peripheral to userspace.
